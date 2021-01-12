@@ -51,6 +51,44 @@ client.on('message', message => {
     if (message.author.bot) return;
     //if message was sent in a dm ignore it
     if (message.channel.type === 'dm') return;
+    //if message in counting channel
+    if (message.channel.id === process.env.COUNT_CHANNEL_ID){
+        if(parseInt(message.content) === db.count + 1){
+            console.log("count Recived")
+            if(!db[message.author.id]) db[message.author.id] = {
+                count: 0
+            }
+            db[message.author.id].count++
+            db.count++;
+            message.channel.send("Count Recived.");
+        } 
+        if(!parseInt(message.content) === db.count + 1) {
+            message.delete();
+        }
+        fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
+            if (x) console.error(x)
+        });
+        if(db[message.author.id].count >= 1){
+            let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
+            message.member.roles.add(role);
+        }
+        if(db[message.author.id].count >= 10){
+            let role = message.guild.roles.cache.get(process.env.LEVEL_TWO_ID);
+            message.member.roles.add(role);
+        }
+        if(db[message.author.id].count >= 20){
+            let role = message.guild.roles.cache.get(process.env.LEVEL_THREE_ID);
+            message.member.roles.add(role);
+        }
+        if(db[message.author.id].count >= 50){
+            let role = message.guild.roles.cache.get(process.env.LEVEL_FOUR_ID);
+            message.member.roles.add(role);
+        }
+        if(db[message.author.id].count >= 100){
+            let role = message.guild.roles.cache.get(process.env.LEVEL_FIVE_ID);
+            message.member.roles.add(role);
+        }
+    }
     //process command
     if (message.content.startsWith(process.env.PREFIX)) {
         const args = message.content.slice(process.env.PREFIX.length).trim().split(/ +/g);
