@@ -56,16 +56,17 @@ client.on('message', message => {
     if (message.author.bot) return;
     if (message.channel.type === 'dm') return;
     if (message.channel.id === process.env.COUNT_CHANNEL_ID){
+        if(!db[message.author.id]) db[message.author.id] = {
+            count: 0
+        }
         if(parseInt(message.content) === db.count + 1){
-            console.log("count Recived")
             db[message.author.id].count++
             db.count++;
-            message.channel.send("Count Recived.");
-        } 
-        if(!parseInt(message.content) === db.count + 1) {
+            message.channel.send(new Discord.MessageEmbed().setColor(process.env.COLOR).setTitle(`Count Recived: ${db.count}`).setTimestamp());
+        } else {
             message.delete();
         }
-        fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
+        return fs.writeFileSync("./data/database.json", JSON.stringify(db), (x) => {
             if (x) console.error(x)
         });
     }
@@ -73,8 +74,8 @@ client.on('message', message => {
         count: 0
     }
     fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
-            if (x) console.error(x)
-        });
+        if (x) console.error(x)
+    });
     if(db[message.author.id].count >= 1){
         let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
         message.member.roles.add(role);
