@@ -1,22 +1,17 @@
 //importing packages
-const Discord = require('discord.js');
+const Discord = require("discord.js");
 const fs = require("fs");
 const client = new Discord.Client({ws: { intents: Discord.Intents.PRIVILEDGED }});
 const enmap = require("enmap");
+const db = require("quick.db");
 client.commands = new enmap;
 
 //get env config
-require('dotenv').config();
+require("dotenv").config();
 
 //keep project alive
 const keepAlive = require("./main/keepAlive.js");
 keepAlive();
-
-//count database
-let db = JSON.parse(fs.readFileSync("./data/database.json", "utf8"));
-fs.writeFile("./data/database-old.json", JSON.stringify(db), (x) => {
-    if (x) console.error(x)
-});
 
 //varriables
 let embed;
@@ -25,97 +20,40 @@ let embed;
 client.login(process.env.TOKEN);
 
 //on bot login
-client.on('ready', () => {
+client.on("ready", () => {
     console.log(`${new Date()} Logged in as ${client.user.tag}!`);
     client.user.setActivity(process.env.STATUS);
-    console.log(`Count: ${db.count}`);
+    if (!db.get("count")){
+        db.set("count", 0);
+    }
+    console.log(`Count: ${db.get("count")}`);
 });
 
 //on new user
-client.on('guildMemberAdd', (member) => {
-    //set the users count to 0 if they have no data
-    if(!member.user.id){
-        db[member.user.id] = {
-            count: 0
-        };
+client.on("guildMemberAdd", (member) => {
+    if (!db.get(`users.${message.author.id}`)){
+        db.set(`users.${message.author.id}.count`, 0);
     }
-    //save data to database
-    fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
-        if (x) console.error(x)
-    });
 });
 
 //on message
-client.on('message', message => {
-    if (!db.count){
-        db.count = 0
-        fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
-            if (x) console.error(x)
-        });
+client.on("message", message => {
+    if (!db.get(`users.${message.author.id}`)){
+        db.set(`users.${message.author.id}.count`, 0);
     }
     if (message.author.bot) return;
-    if (message.channel.type === 'dm') return;
+    if (message.channel.type === "dm") return;
     if (message.channel.id === process.env.COUNT_CHANNEL_ID){
-        if(!db[message.author.id]) db[message.author.id] = {
-            count: 0
-        }
-        if(parseInt(message.content) === db.count + 1){
-            db[message.author.id].count++
-            db.count++;
-            message.channel.send(new Discord.MessageEmbed().setColor(process.env.COLOR).setTitle(`Count Recived: ${db.count}`).setTimestamp());
+        if(parseInt(message.content) === db.get("count") + 1){
+            db.add(`users.${message.author.id}.count`, 1)
+            db.add("count", 1)
+            checkForRole(db.get(`users.${message.author.id}.count`), message);
+            message.channel.send(new Discord.MessageEmbed().setColor(process.env.COLOR).setTitle(`Count Recived: ${db.get("count")}`).setTimestamp());
         } else {
             message.delete();
         }
-        return fs.writeFileSync("./data/database.json", JSON.stringify(db), (x) => {
-            if (x) console.error(x)
-        });
     }
-    if(!db[message.author.id]) db[message.author.id] = {
-        count: 0
-    }
-    fs.writeFile("./data/database.json", JSON.stringify(db), (x) => {
-        if (x) console.error(x)
-    });
-    if(db[message.author.id].count >= 1){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
-        message.member.roles.add(role);
-    }
-    if(db[message.author.id].count >= 10){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_TWO_ID);
-        message.member.roles.add(role);
-    }
-    if(db[message.author.id].count >= 20){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_THREE_ID);
-        message.member.roles.add(role);
-    }
-    if(db[message.author.id].count >= 50){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_FOUR_ID);
-        message.member.roles.add(role);
-    }
-    if(db[message.author.id].count >= 100){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_FIVE_ID);
-        message.member.roles.add(role);
-    }
-    if(db[message.author.id].count <= 1){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
-        message.member.roles.remove(role);
-    }
-    if(db[message.author.id].count <= 10){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_TWO_ID);
-        message.member.roles.remove(role);
-    }
-    if(db[message.author.id].count <= 20){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_THREE_ID);
-        message.member.roles.remove(role);
-    }
-    if(db[message.author.id].count <= 50){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_FOUR_ID);
-        message.member.roles.remove(role);
-    }
-    if(db[message.author.id].count <= 100){
-        let role = message.guild.roles.cache.get(process.env.LEVEL_FIVE_ID);
-        message.member.roles.remove(role);
-    }
+    checkForRole(db.get(`users.${message.author.id}.count`), message);
     if (message.content.startsWith(process.env.PREFIX)) {
         const args = message.content.slice(process.env.PREFIX.length).trim().split(/ +/g);
         const command = args.shift().toLowerCase();
@@ -132,7 +70,50 @@ fs.readdir("./commands/", async (err, files) => {
         if (!file.endsWith(".js")) return;
         let props = require(`./commands/${file}`);
         let cmdName = file.split(".")[0];
-        console.log(`Loaded Command '${cmdName}'.`);
+        console.log(`Loaded Command "${cmdName}".`);
         client.commands.set(cmdName, props);
     });
 });
+
+function checkForRole(data, message){
+    if(data >= 1){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
+        message.member.roles.add(role);
+    }
+    if(data >= 10){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_TWO_ID);
+        message.member.roles.add(role);
+    }
+    if(data >= 20){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_THREE_ID);
+        message.member.roles.add(role);
+    }
+    if(data >= 50){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_FOUR_ID);
+        message.member.roles.add(role);
+    }
+    if(data >= 100){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_FIVE_ID);
+        message.member.roles.add(role);
+    }
+    if(data <= 1){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_ONE_ID);
+        message.member.roles.remove(role);
+    }
+    if(data <= 10){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_TWO_ID);
+        message.member.roles.remove(role);
+    }
+    if(data <= 20){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_THREE_ID);
+        message.member.roles.remove(role);
+    }
+    if(data <= 50){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_FOUR_ID);
+        message.member.roles.remove(role);
+    }
+    if(data <= 100){
+        let role = message.guild.roles.cache.get(process.env.LEVEL_FIVE_ID);
+        message.member.roles.remove(role);
+    }
+}
